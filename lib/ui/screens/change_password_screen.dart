@@ -1,7 +1,12 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:task_manager_without_getx/data/service/network_caller.dart';
+import 'package:task_manager_without_getx/data/urls.dart';
 import 'package:task_manager_without_getx/ui/screens/sign_in_screen.dart';
+import 'package:task_manager_without_getx/ui/widgets/centered_circular_progress_indicator.dart';
 import 'package:task_manager_without_getx/ui/widgets/screen_background.dart';
+import 'package:task_manager_without_getx/ui/widgets/snack_bar_message.dart';
 
 class ChangePasswordScreen extends StatefulWidget {
   const ChangePasswordScreen({super.key});
@@ -17,6 +22,8 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
   final TextEditingController _passwordTEController = TextEditingController();
   final TextEditingController _confirmPasswordTEController = TextEditingController();
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+
+  bool _resetPasswordLoading = false;
 
   @override
   Widget build(BuildContext context) {
@@ -74,10 +81,15 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                     },
                   ),
                   const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: _onTapSubmitButton,
-                    child: Text('Confirm'),
+                  Visibility(
+                    visible: _resetPasswordLoading == false,
+                    replacement: CenteredCircularProgressIndicator(),
+                    child: ElevatedButton(
+                      onPressed: _onTapSubmitButton,
+                      child: Text('Confirm'),
+                    ),
                   ),
+
                   const SizedBox(height: 32),
                   Center(
                     child: RichText(
@@ -116,6 +128,40 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
     // if (_formKey.currentState!.validate()) {
     //   // TODO: Sign in with API
     // }
+    if (_formKey.currentState!.validate()) {
+      _resetPassword();
+    }
+  }
+
+  Future<void> _resetPassword() async {
+    _resetPasswordLoading = true;
+    setState(() {});
+
+    SharedPreferences sharedPreferences = await SharedPreferences.getInstance();
+    String? Email = sharedPreferences.getString('email') ?? '';
+    String? Otp = sharedPreferences.getString('otp') ?? '';
+
+    Map<String, String> requestBody = {
+      "email": Email,
+      "OTP": Otp,
+      "password": _passwordTEController.text,
+    };
+
+    NetworkResponse response = await NetworkCaller.postRequest(
+        url: Urls.resetPasswordUrl, body: requestBody, isFromLogin: true
+    );
+
+    _resetPasswordLoading = false;
+    setState(() {});
+
+    if (response.isSuccess) {
+      showSnackBarMessage(context, "Reset password has been successfully done! Please login again");
+      Navigator.pushNamed(context, SignInScreen.name);
+    } else {
+      _resetPasswordLoading = false;
+      setState(() {});
+      showSnackBarMessage(context, response.errorMessage!);
+    }
   }
 
   void _onTapSignInButton() {

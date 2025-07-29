@@ -1,9 +1,14 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:pin_code_fields/pin_code_fields.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:task_manager_without_getx/data/service/network_caller.dart';
+import 'package:task_manager_without_getx/data/urls.dart';
 import 'package:task_manager_without_getx/ui/screens/change_password_screen.dart';
 import 'package:task_manager_without_getx/ui/screens/sign_in_screen.dart';
+import 'package:task_manager_without_getx/ui/widgets/centered_circular_progress_indicator.dart';
 import 'package:task_manager_without_getx/ui/widgets/screen_background.dart';
+import 'package:task_manager_without_getx/ui/widgets/snack_bar_message.dart';
 
 class PinVerificationScreen extends StatefulWidget {
   const PinVerificationScreen({super.key});
@@ -18,6 +23,8 @@ class PinVerificationScreen extends StatefulWidget {
 class _PinVerificationScreenState extends State<PinVerificationScreen> {
   final TextEditingController _otpTEController = TextEditingController();
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+
+  bool _otpVerifyLoading = false;
 
   @override
   Widget build(BuildContext context) {
@@ -68,10 +75,15 @@ class _PinVerificationScreenState extends State<PinVerificationScreen> {
                     appContext: context,
                   ),
                   const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: _onTapSubmitButton,
-                    child: Text('Verify'),
+                  Visibility(
+                    visible: _otpVerifyLoading == false,
+                    replacement: CenteredCircularProgressIndicator(),
+                    child: ElevatedButton(
+                      onPressed: _onTapSubmitButton,
+                      child: Text('Verify'),
+                    ),
                   ),
+
                   const SizedBox(height: 32),
                   Center(
                     child: RichText(
@@ -110,7 +122,32 @@ class _PinVerificationScreenState extends State<PinVerificationScreen> {
     // if (_formKey.currentState!.validate()) {
     //   // TODO: Sign in with API
     // }
-    Navigator.pushNamed(context, ChangePasswordScreen.name);
+    if (_formKey.currentState!.validate()) {
+      _verifyOtp();
+    }
+
+  }
+
+  Future<void> _verifyOtp() async {
+    _otpVerifyLoading = true;
+    setState(() {});
+
+    SharedPreferences sharedPreferences = await SharedPreferences.getInstance();
+    String? Email = sharedPreferences.getString('email') ?? '';
+
+    NetworkResponse response = await NetworkCaller.getRequest(
+        url: Urls.verifyOtpUrl(Email,_otpTEController.text.trim())
+    );
+
+    if (response.isSuccess) {
+      await sharedPreferences.setString('otp', _otpTEController.text.trim());
+      showSnackBarMessage(context, "Your otp has been successfully verified");
+      Navigator.pushNamed(context, ChangePasswordScreen.name);
+    } else {
+      _otpVerifyLoading = false;
+      setState(() {});
+      showSnackBarMessage(context, response.errorMessage!);
+    }
   }
 
   void _onTapSignInButton() {
